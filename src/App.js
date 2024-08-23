@@ -51,6 +51,7 @@ function App() {
                   attributes?.node_type?.["-Imported"] ||
                   attributes?.node_type?.["multi_added"] ||
                   attributes?.node_type?.["button_added"] ||
+                  Object.values(attributes.node_type)[0] ||
                   "N/A";
 
                 if (nodeType !== "pole") return;
