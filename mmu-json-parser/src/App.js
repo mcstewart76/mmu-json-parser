@@ -1,11 +1,16 @@
 import React, { useState } from "react";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
+
+
 function App() {
   const [parsedData, setParsedData] = useState([]);
   const [isJsonUploaded, setIsJsonUploaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [jobNumber, setJobNumber] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(null); // Track the copied button index
 
   const handleToggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -140,9 +145,14 @@ function App() {
     }
   };
 
-  const handleCopy = (text) => {
+  const handleCopy = (text, index) => {
     navigator.clipboard.writeText(text);
-    alert("Copied to clipboard!");
+    setCopiedIndex(index); // Set the index of the copied button
+
+    // Reset the copied text after 2 seconds
+    setTimeout(() => {
+      setCopiedIndex(null);
+    }, 1500);
   };
 
   return (
@@ -157,7 +167,10 @@ function App() {
           darkMode ? "bg-custom-gray" : "bg-blue-600 text-white"
         }`}
       >
-        <h1 className="text-xl font-semibold">MMU JSON Parser</h1>
+        <div>
+          <h1 className="text-xl font-semibold">MMU JSON Parser</h1>
+          <span className="font-semibold text-xs">by Chris Stewart</span>
+        </div>
         <div className="flex items-center">
           {jobNumber && (
             <h2 className="text-lg mt-2 mr-6">Job Number: {jobNumber}</h2>
@@ -168,7 +181,7 @@ function App() {
               darkMode ? "bg-gray-700" : "bg-gray-200 text-gray-900"
             } focus:outline-none`}
           >
-            {darkMode ? "Light Mode" : "Dark Mode"}
+            <FontAwesomeIcon icon={darkMode ? faSun : faMoon} />
           </button>
         </div>
       </header>
@@ -199,17 +212,6 @@ function App() {
               }`}
             >
               <div className="grid gap-4">
-                {/* <div
-                  className={`p-2 rounded ${
-                    darkMode
-                      ? "bg-custom-light"
-                      : "bg-gray-50 border-b border-gray-200"
-                  } grid grid-cols-7 gap-4`}
-                >
-                  <p>OCR:</p>
-                  <p>OCR:</p>
-                </div> */}
-
                 {parsedData.map((item, index) => (
                   <div
                     key={index}
@@ -224,23 +226,38 @@ function App() {
                         darkMode
                           ? "bg-custom-light"
                           : "bg-gray-50 border-b border-gray-200"
-                      } grid grid-cols-7 gap-4`}
+                      } grid grid-cols-9 gap-4`}
                     >
                       <p className="col-span-2">
-                        <strong>Pole Count:</strong> {item.poleCount}
+                        <strong>Loc Number:</strong> {item.poleCount}
                       </p>
                       <p className="col-span-2">
                         <strong>Pole Tag:</strong> {item.poleTag}
                       </p>
                       <p className="col-span-3">
                         <strong>Construction Notes:</strong>{" "}
-                        {item.constructionNotes}
+                        {item.constructionNotes
+                          .split("\n")
+                          .map((line, lineIndex) => (
+                            <React.Fragment key={lineIndex}>
+                              {line}
+                              <br />
+                            </React.Fragment>
+                          ))}
                       </p>
                       <button
-                        onClick={() => handleCopy("Loc: " + item.poleCount + "\n \n" + item.constructionNotes)}
-                        className="col-span-1 py-2 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none"
+                        onClick={() =>
+                          handleCopy(
+                            "Loc: " +
+                              item.poleCount +
+                              "\n \n" +
+                              item.constructionNotes,
+                            index
+                          )
+                        }
+                        className={`col-span-1 py-2 my-auto rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
                       >
-                        Copy
+                        {copiedIndex === index ? "Copied!" : "Copy"}
                       </button>
                     </div>
                   </div>
