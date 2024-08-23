@@ -278,8 +278,8 @@ function App() {
               )
             }
             className={`w-full h-48 border-4 border-dashed ${
-              darkMode ? "border-gray-700 bg-custom-light" : "border-gray-950"
-            } flex items-center justify-center bg-white text-center cursor-pointer hover:border-gray-500 transition duration-300`}
+              darkMode ? "border-gray-700 bg-custom-light" : "border-gray-950 bg-white"
+            } flex items-center justify-center text-center cursor-pointer hover:border-gray-500 transition duration-300`}
           >
             Drop your JSON file here
           </div>
