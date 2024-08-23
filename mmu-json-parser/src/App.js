@@ -149,7 +149,7 @@ function App() {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index); // Set the index of the copied button
 
-    // Reset the copied text after 2 seconds
+    // Reset the copied text after 1.5 seconds
     setTimeout(() => {
       setCopiedIndex(null);
     }, 1500);
