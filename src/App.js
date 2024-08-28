@@ -21,61 +21,76 @@ function App() {
     setHideNoWork(!hideNoWork);
   };
 
-  function formattedConstructionNotes(note) {
-    // Split the note into lines
-    const lines = note.split("\n");
+function formattedConstructionNotes(note) {
+  // Split the note into lines
+  const lines = note.split("\n");
 
-    // Initialize an array to hold the formatted lines
-    let formattedLines = [];
+  // Initialize an array to hold the formatted lines
+  let formattedLines = [];
 
-    // Define the keywords that need special formatting
-    const keywords = ["RM:", "IN:", "TX:"];
+  // Define the keywords that need special formatting
+  const keywords = ["RM:", "IN:", "TX:"];
 
-    let currentKeyword = "";
-    let addSpacing = false; // To control when to add spacing
+  let currentKeyword = "";
+  let addSpacing = false; // To control when to add spacing
 
-    // Loop through each line and apply formatting
-    for (let i = 0; i < lines.length; i++) {
-      let trimmedLine = lines[i].trim();
+  // Loop through each line and apply formatting
+  for (let i = 0; i < lines.length; i++) {
+    let trimmedLine = lines[i].trim();
 
-      // Check if the line starts with any of the keywords
-      if (keywords.some((keyword) => trimmedLine.startsWith(keyword))) {
-        currentKeyword = trimmedLine.split(":")[0] + ":"; // Set the current keyword
-        const nextLine = lines[i + 1]?.trim(); // Get the next line
-        formattedLines.push(`${currentKeyword} ${nextLine}`);
+    // Check if the line starts with any of the keywords
+    if (keywords.some((keyword) => trimmedLine.startsWith(keyword))) {
+      currentKeyword = trimmedLine.split(":")[0] + ":"; // Set the current keyword
+      const nextLine = lines[i + 1]?.trim(); // Get the next line
+      formattedLines.push(`${currentKeyword} ${nextLine}`);
 
-        // Set addSpacing to true to start adding spaces after this line
-        addSpacing = true;
+      // Set addSpacing to true to start adding spaces after this line
+      addSpacing = true;
 
-        // Skip the next line since it's already processed
-        i++;
-      } else if (
-        addSpacing &&
-        (currentKeyword === "RM:" || currentKeyword === "TX:")
-      ) {
-        // Add spacing for RM and TX, but stop after the first empty line or special line
-        if (trimmedLine.startsWith("*") || trimmedLine === "") {
-          addSpacing = false;
-          formattedLines.push(trimmedLine); // No additional spacing
-        } else {
-          formattedLines.push("       " + trimmedLine); // 7 spaces for RM and TX
-        }
-      } else if (addSpacing && currentKeyword === "IN:") {
-        // Add spacing for IN, but stop after the first empty line or special line
-        if (trimmedLine.startsWith("*") || trimmedLine === "") {
-          addSpacing = false;
-          formattedLines.push(trimmedLine); // No additional spacing
-        } else {
-          formattedLines.push("     " + trimmedLine); // 5 spaces for IN
-        }
+      // Skip the next line since it's already processed
+      i++;
+    } else if (
+      addSpacing &&
+      (currentKeyword === "RM:" || currentKeyword === "TX:")
+    ) {
+      // Add spacing for RM and TX, but stop after the first empty line or special line
+      if (trimmedLine.startsWith("*") || trimmedLine === "") {
+        addSpacing = false;
+        formattedLines.push(trimmedLine); // No additional spacing
       } else {
-        formattedLines.push(trimmedLine); // Default line
+        formattedLines.push("       " + trimmedLine); // 7 spaces for RM and TX
       }
+    } else if (addSpacing && currentKeyword === "IN:") {
+      // Add spacing for IN, but stop after the first empty line or special line
+      if (trimmedLine.startsWith("*") || trimmedLine === "") {
+        addSpacing = false;
+        formattedLines.push(trimmedLine); // No additional spacing
+      } else {
+        formattedLines.push("     " + trimmedLine); // 5 spaces for IN
+      }
+    } else {
+      formattedLines.push(trimmedLine); // Default line
     }
-
-    // Join the formatted lines back together
-    return formattedLines.join("\n");
   }
+
+  // Join the formatted lines back together
+  let formattedString = formattedLines.join("\n");
+
+  // Trim extra newlines after RM and IN sections
+  formattedString = formattedString.replace(/(\n{2,})/g, "\n");
+
+  // Ensure a single line break after the TX section but before any spec or following content
+  formattedString = formattedString.replace(
+    /(TX:[^\n]*\n(?:\s+.*\n)*)/g,
+    "$1\n"
+  );
+
+  // Remove unnecessary trailing newlines or spaces, but keep the required one after TX:
+  formattedString = formattedString.trimEnd();
+
+  return formattedString;
+}
+
 
   const handleDrop = (
     event,
@@ -360,9 +375,8 @@ function App() {
                           <strong>Pole Tag:</strong> {item.poleTag}
                         </p>
                         <p className="col-span-3">
-                          <strong>APC Directive:</strong>{" "}
-                          <br></br>
-                          {item.constructionNotesFormatted
+                          <strong>APC Directive:</strong> <br></br>
+                          {item.constructionNotes
                             .split("\n")
                             .map((line, lineIndex) => (
                               <React.Fragment key={lineIndex}>
@@ -371,22 +385,27 @@ function App() {
                               </React.Fragment>
                             ))}
                         </p>
+                        <div className="col-span-2 flex flex-col items-center">
+                          <p>
+                            <strong>Callouts:</strong>
+                          </p>
                         <button
                           onClick={() =>
                             handleCopy(
-                              "LOC: " +
-                                item.poleCount +
-                                " POLE TAG# " +
-                                item.poleTag +
-                                "\n \n" +
-                                item.constructionNotesFormatted,
+                              "LOC " +
+                              item.poleCount +
+                              ": POLE TAG# " +
+                              item.poleTag +
+                              "\n \n" +
+                              item.constructionNotesFormatted,
                               index
                             )
                           }
-                          className={`col-span-1 py-2 my-auto rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
-                        >
+                          className={`py-2 my-auto px-12 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
+                          >
                           {copiedIndex === index ? "Copied!" : "Copy"}
                         </button>
+                          </div>
                       </div>
                     </div>
                   ))}
