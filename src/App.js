@@ -1,20 +1,81 @@
 import React, { useState } from "react";
-
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
-
 
 function App() {
   const [parsedData, setParsedData] = useState([]);
   const [isJsonUploaded, setIsJsonUploaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [jobNumber, setJobNumber] = useState("");
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState(null); // Track the copied button index
+  const [hideNoWork, setHideNoWork] = useState(true); // State to manage hiding locations with "NO APC WORK"
 
+  // Function to toggle dark mode
   const handleToggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
+
+  // Function to toggle hiding locations with "NO APC WORK"
+  const handleToggleHideNoWork = () => {
+    setHideNoWork(!hideNoWork);
+  };
+
+  function formattedConstructionNotes(note) {
+    // Split the note into lines
+    const lines = note.split("\n");
+
+    // Initialize an array to hold the formatted lines
+    let formattedLines = [];
+
+    // Define the keywords that need special formatting
+    const keywords = ["RM:", "IN:", "TX:"];
+
+    let currentKeyword = "";
+    let addSpacing = false; // To control when to add spacing
+
+    // Loop through each line and apply formatting
+    for (let i = 0; i < lines.length; i++) {
+      let trimmedLine = lines[i].trim();
+
+      // Check if the line starts with any of the keywords
+      if (keywords.some((keyword) => trimmedLine.startsWith(keyword))) {
+        currentKeyword = trimmedLine.split(":")[0] + ":"; // Set the current keyword
+        const nextLine = lines[i + 1]?.trim(); // Get the next line
+        formattedLines.push(`${currentKeyword} ${nextLine}`);
+
+        // Set addSpacing to true to start adding spaces after this line
+        addSpacing = true;
+
+        // Skip the next line since it's already processed
+        i++;
+      } else if (
+        addSpacing &&
+        (currentKeyword === "RM:" || currentKeyword === "TX:")
+      ) {
+        // Add spacing for RM and TX, but stop after the first empty line or special line
+        if (trimmedLine.startsWith("*") || trimmedLine === "") {
+          addSpacing = false;
+          formattedLines.push(trimmedLine); // No additional spacing
+        } else {
+          formattedLines.push("       " + trimmedLine); // 7 spaces for RM and TX
+        }
+      } else if (addSpacing && currentKeyword === "IN:") {
+        // Add spacing for IN, but stop after the first empty line or special line
+        if (trimmedLine.startsWith("*") || trimmedLine === "") {
+          addSpacing = false;
+          formattedLines.push(trimmedLine); // No additional spacing
+        } else {
+          formattedLines.push("     " + trimmedLine); // 5 spaces for IN
+        }
+      } else {
+        formattedLines.push(trimmedLine); // Default line
+      }
+    }
+
+    // Join the formatted lines back together
+    return formattedLines.join("\n");
+  }
 
   const handleDrop = (
     event,
@@ -55,6 +116,10 @@ function App() {
                   "N/A";
 
                 if (nodeType !== "pole") return;
+                const poleOwner =
+                  Object.values(attributes.pole_owner)[0] ||
+                  attributes?.pole_owner?.["-Imported"] ||
+                  "N/A";
 
                 const poleCount =
                   attributes?.pole_count?.["-Imported"] ||
@@ -70,12 +135,53 @@ function App() {
                     .map((note) => note.note)
                     .join(", ") || "NO APC WORK";
 
+                const constructionNotesFormatted =
+                  formattedConstructionNotes(constructionNotes);
+
+                const proposedPoleSpec =
+                  attributes?.proposed_pole_spec?.["button_added"] ||
+                  attributes?.proposed_pole_spec?.["-Imported"] ||
+                  "N/A";
+                // const proposedPoleSize =
+                // proposedPoleSpec.trim().split(" ")[0].replace("-", "/") || "N/A";
+
+                const poleLatLong =
+                  node?.latitude + ", " + node.longitude ||
+                  Object.values(node?.latitude)[0] +
+                    ", " +
+                    Object.values(node.longitude)[0] ||
+                  "N/A";
+
+                const keyword = "NESC";
+                const poleJuCompanies =
+                  Object.values(attributes?.construction_notes || {})
+                    .filter((note) =>
+                      note.note?.toLowerCase().includes(keyword.toLowerCase())
+                    )
+                    .map((note) =>
+                      note.attacher === ""
+                        ? "Missing JU transfer company"
+                        : note.attacher
+                    )
+                    .filter((company) => company) || "N/A";
+
+                //   const njunsData =
+                //  "RPL " + poleCount + " station " + poleTag + " " + poleLatLong + " " + proposedPoleSize +
+                //    "county " + "cross street " + "city" + " " + poleJuCompanies + " " + poleOwner;
+
+                // console.log(njunsData);
                 data.push({
                   id: nodeId,
                   type: nodeType,
+                  poleOwner,
                   poleCount,
                   poleTag,
                   constructionNotes,
+                  proposedPoleSpec,
+                  poleLatLong,
+                  poleJuCompanies,
+                  constructionNotesFormatted,
+                  // njunsData
                 });
               } catch (error) {
                 errors.push(`Issue with attributes for node ID: ${nodeId}`);
@@ -207,62 +313,83 @@ function App() {
         {isJsonUploaded ? (
           <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
             <h3 className="text-lg font-semibold mb-4">Job Data:</h3>
+            {isJsonUploaded && (
+              <button
+                onClick={handleToggleHideNoWork}
+                className={`mb-4 py-2 px-4 rounded ${
+                  darkMode ? "bg-gray-700" : "bg-gray-200 text-gray-900"
+                } focus:outline-none`}
+              >
+                {hideNoWork
+                  ? "Show No Work Locations"
+                  : "Hide No Work Locations"}
+              </button>
+            )}
+
             <div
               className={`rounded p-4 ${
                 darkMode ? "bg-custom-dark" : "bg-white border border-gray-300"
               }`}
             >
               <div className="grid gap-4">
-                {parsedData.map((item, index) => (
-                  <div
-                    key={index}
-                    className={`p-2 rounded ${
-                      darkMode
-                        ? "bg-custom-light"
-                        : "bg-gray-50 border-b border-gray-200"
-                    }`}
-                  >
+                {parsedData
+                  .filter(
+                    (item) =>
+                      !hideNoWork || item.constructionNotes !== "NO APC WORK"
+                  )
+                  .map((item, index) => (
                     <div
+                      key={index}
                       className={`p-2 rounded ${
                         darkMode
                           ? "bg-custom-light"
                           : "bg-gray-50 border-b border-gray-200"
-                      } grid grid-cols-9 gap-4`}
+                      }`}
                     >
-                      <p className="col-span-2">
-                        <strong>Loc Number:</strong> {item.poleCount}
-                      </p>
-                      <p className="col-span-2">
-                        <strong>Pole Tag:</strong> {item.poleTag}
-                      </p>
-                      <p className="col-span-3">
-                        <strong>Construction Notes:</strong>{" "}
-                        {item.constructionNotes
-                          .split("\n")
-                          .map((line, lineIndex) => (
-                            <React.Fragment key={lineIndex}>
-                              {line}
-                              <br />
-                            </React.Fragment>
-                          ))}
-                      </p>
-                      <button
-                        onClick={() =>
-                          handleCopy(
-                            "Loc: " +
-                              item.poleCount +
-                              "\n \n" +
-                              item.constructionNotes,
-                            index
-                          )
-                        }
-                        className={`col-span-1 py-2 my-auto rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
+                      <div
+                        className={`p-2 rounded ${
+                          darkMode
+                            ? "bg-custom-light"
+                            : "bg-gray-50 border-b border-gray-200"
+                        } grid grid-cols-9 gap-4`}
                       >
-                        {copiedIndex === index ? "Copied!" : "Copy"}
-                      </button>
+                        <p className="col-span-2">
+                          <strong>Loc Number:</strong> {item.poleCount}
+                        </p>
+                        <p className="col-span-2">
+                          <strong>Pole Tag:</strong> {item.poleTag}
+                        </p>
+                        <p className="col-span-3">
+                          <strong>APC Directive:</strong>{" "}
+                          <br></br>
+                          {item.constructionNotesFormatted
+                            .split("\n")
+                            .map((line, lineIndex) => (
+                              <React.Fragment key={lineIndex}>
+                                {line}
+                                <br />
+                              </React.Fragment>
+                            ))}
+                        </p>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              "LOC: " +
+                                item.poleCount +
+                                " POLE TAG# " +
+                                item.poleTag +
+                                "\n \n" +
+                                item.constructionNotesFormatted,
+                              index
+                            )
+                          }
+                          className={`col-span-1 py-2 my-auto rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
+                        >
+                          {copiedIndex === index ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           </div>
@@ -279,7 +406,9 @@ function App() {
               )
             }
             className={`w-full h-48 border-4 border-dashed ${
-              darkMode ? "border-gray-700 bg-custom-light" : "border-gray-950 bg-white"
+              darkMode
+                ? "border-gray-700 bg-custom-light"
+                : "border-gray-950 bg-white"
             } flex items-center justify-center text-center cursor-pointer hover:border-gray-500 transition duration-300`}
           >
             Drop your JSON file here
