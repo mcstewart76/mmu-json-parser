@@ -268,7 +268,8 @@ function formattedConstructionNotes(note) {
   };
 
   const handleCopy = (text, index) => {
-    navigator.clipboard.writeText(text);
+    const capitalizedText = text.toUpperCase();
+    navigator.clipboard.writeText(capitalizedText);
     setCopiedIndex(index); // Set the index of the copied button
 
     // Reset the copied text after 1.5 seconds
