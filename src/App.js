@@ -2,6 +2,23 @@ import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
 
+function calculatePoleStats(parsedData) {
+  let totalPoles = 0;
+  let changedOutPoles = 0;
+
+  parsedData.forEach((item) => {
+    // Add to the total pole count
+    totalPoles += 1; // Count each item as one location/pole
+
+    // Increment changed-out poles if there's a valid proposed pole spec
+    if (item.proposedPoleSpec && item.proposedPoleSpec.trim() !== "N/A") {
+      changedOutPoles += 1;
+    }
+  });
+
+  return { totalPoles, changedOutPoles };
+}
+
 function App() {
   const [parsedData, setParsedData] = useState([]);
   const [isJsonUploaded, setIsJsonUploaded] = useState(false);
@@ -10,6 +27,8 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState(null); // Track the copied button index
   const [hideNoWork, setHideNoWork] = useState(true); // State to manage hiding locations with "NO APC WORK"
+
+  const jobStats = calculatePoleStats(parsedData); // Call function to get job statistics
 
   // Function to toggle dark mode
   const handleToggleDarkMode = () => {
@@ -180,6 +199,8 @@ function formattedConstructionNotes(note) {
                     )
                     .filter((company) => company) || "N/A";
 
+                    // const jobPoleReplacementCount = proposedPoleSpec
+
                 //   const njunsData =
                 //  "RPL " + poleCount + " station " + poleTag + " " + poleLatLong + " " + proposedPoleSize +
                 //    "county " + "cross street " + "city" + " " + poleJuCompanies + " " + poleOwner;
@@ -328,6 +349,12 @@ function formattedConstructionNotes(note) {
 
         {isJsonUploaded ? (
           <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
+            {/* Display pole stats */}
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold mb-2">Pole Stats:</h3>
+              <p>Total Poles/Locations: {jobStats.totalPoles}</p>
+              <p>Poles Changed Out: {jobStats.changedOutPoles}</p>
+            </div>
             <h3 className="text-lg font-semibold mb-4">Job Data:</h3>
             {isJsonUploaded && (
               <button
@@ -390,23 +417,23 @@ function formattedConstructionNotes(note) {
                           <p>
                             <strong>Callouts:</strong>
                           </p>
-                        <button
-                          onClick={() =>
-                            handleCopy(
-                              "LOC " +
-                              item.poleCount +
-                              ": POLE TAG# " +
-                              item.poleTag +
-                              "\n \n" +
-                              item.constructionNotesFormatted,
-                              index
-                            )
-                          }
-                          className={`py-2 my-auto px-12 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
+                          <button
+                            onClick={() =>
+                              handleCopy(
+                                "LOC " +
+                                  item.poleCount +
+                                  ": POLE TAG# " +
+                                  item.poleTag +
+                                  "\n \n" +
+                                  item.constructionNotesFormatted,
+                                index
+                              )
+                            }
+                            className={`py-2 my-auto px-12 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
                           >
-                          {copiedIndex === index ? "Copied!" : "Copy"}
-                        </button>
-                          </div>
+                            {copiedIndex === index ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
