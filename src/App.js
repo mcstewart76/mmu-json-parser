@@ -5,18 +5,30 @@ import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
 function calculatePoleStats(parsedData) {
   let totalPoles = 0;
   let changedOutPoles = 0;
-
+  let apcWorkedPoles = 0;
+  let apcNonPco = 0;
   parsedData.forEach((item) => {
     // Add to the total pole count
     totalPoles += 1; // Count each item as one location/pole
 
     // Increment changed-out poles if there's a valid proposed pole spec
-    if (item.proposedPoleSpec && item.proposedPoleSpec.trim() !== "N/A") {
+    if (
+      item.proposedPoleSpec !== "N/A" &&
+      item.constructionNotesFormatted.toUpperCase().includes("POLE")
+    ) {
       changedOutPoles += 1;
     }
+
+    if (
+      item.attacherCompany &&
+      item.attacherCompany.includes("Alabama Power")
+    ) {
+      apcWorkedPoles += 1;
+    }
+    apcNonPco = apcWorkedPoles - changedOutPoles;
   });
 
-  return { totalPoles, changedOutPoles };
+  return { totalPoles, changedOutPoles, apcWorkedPoles, apcNonPco };
 }
 
 function App() {
@@ -40,76 +52,75 @@ function App() {
     setHideNoWork(!hideNoWork);
   };
 
-function formattedConstructionNotes(note) {
-  // Split the note into lines
-  const lines = note.split("\n");
+  function formattedConstructionNotes(note) {
+    // Split the note into lines
+    const lines = note.split("\n");
 
-  // Initialize an array to hold the formatted lines
-  let formattedLines = [];
+    // Initialize an array to hold the formatted lines
+    let formattedLines = [];
 
-  // Define the keywords that need special formatting
-  const keywords = ["RM:", "IN:", "TX:"];
+    // Define the keywords that need special formatting
+    const keywords = ["RM:", "IN:", "TX:"];
 
-  let currentKeyword = "";
-  let addSpacing = false; // To control when to add spacing
+    let currentKeyword = "";
+    let addSpacing = false; // To control when to add spacing
 
-  // Loop through each line and apply formatting
-  for (let i = 0; i < lines.length; i++) {
-    let trimmedLine = lines[i].trim();
+    // Loop through each line and apply formatting
+    for (let i = 0; i < lines.length; i++) {
+      let trimmedLine = lines[i].trim();
 
-    // Check if the line starts with any of the keywords
-    if (keywords.some((keyword) => trimmedLine.startsWith(keyword))) {
-      currentKeyword = trimmedLine.split(":")[0] + ":"; // Set the current keyword
-      const nextLine = lines[i + 1]?.trim(); // Get the next line
-      formattedLines.push(`${currentKeyword} ${nextLine}`);
+      // Check if the line starts with any of the keywords
+      if (keywords.some((keyword) => trimmedLine.startsWith(keyword))) {
+        currentKeyword = trimmedLine.split(":")[0] + ":"; // Set the current keyword
+        const nextLine = lines[i + 1]?.trim(); // Get the next line
+        formattedLines.push(`${currentKeyword} ${nextLine}`);
 
-      // Set addSpacing to true to start adding spaces after this line
-      addSpacing = true;
+        // Set addSpacing to true to start adding spaces after this line
+        addSpacing = true;
 
-      // Skip the next line since it's already processed
-      i++;
-    } else if (
-      addSpacing &&
-      (currentKeyword === "RM:" || currentKeyword === "TX:")
-    ) {
-      // Add spacing for RM and TX, but stop after the first empty line or special line
-      if (trimmedLine.startsWith("*") || trimmedLine === "") {
-        addSpacing = false;
-        formattedLines.push(trimmedLine); // No additional spacing
+        // Skip the next line since it's already processed
+        i++;
+      } else if (
+        addSpacing &&
+        (currentKeyword === "RM:" || currentKeyword === "TX:")
+      ) {
+        // Add spacing for RM and TX, but stop after the first empty line or special line
+        if (trimmedLine.startsWith("*") || trimmedLine === "") {
+          addSpacing = false;
+          formattedLines.push(trimmedLine); // No additional spacing
+        } else {
+          formattedLines.push("       " + trimmedLine); // 7 spaces for RM and TX
+        }
+      } else if (addSpacing && currentKeyword === "IN:") {
+        // Add spacing for IN, but stop after the first empty line or special line
+        if (trimmedLine.startsWith("*") || trimmedLine === "") {
+          addSpacing = false;
+          formattedLines.push(trimmedLine); // No additional spacing
+        } else {
+          formattedLines.push("     " + trimmedLine); // 5 spaces for IN
+        }
       } else {
-        formattedLines.push("       " + trimmedLine); // 7 spaces for RM and TX
+        formattedLines.push(trimmedLine); // Default line
       }
-    } else if (addSpacing && currentKeyword === "IN:") {
-      // Add spacing for IN, but stop after the first empty line or special line
-      if (trimmedLine.startsWith("*") || trimmedLine === "") {
-        addSpacing = false;
-        formattedLines.push(trimmedLine); // No additional spacing
-      } else {
-        formattedLines.push("     " + trimmedLine); // 5 spaces for IN
-      }
-    } else {
-      formattedLines.push(trimmedLine); // Default line
     }
+
+    // Join the formatted lines back together
+    let formattedString = formattedLines.join("\n");
+
+    // Trim extra newlines after RM and IN sections
+    formattedString = formattedString.replace(/(\n{2,})/g, "\n");
+
+    // Ensure a single line break after the TX section but before any spec or following content
+    formattedString = formattedString.replace(
+      /(TX:[^\n]*\n(?:\s+.*\n)*)/g,
+      "$1\n"
+    );
+
+    // Remove unnecessary trailing newlines or spaces, but keep the required one after TX:
+    formattedString = formattedString.trimEnd();
+
+    return formattedString;
   }
-
-  // Join the formatted lines back together
-  let formattedString = formattedLines.join("\n");
-
-  // Trim extra newlines after RM and IN sections
-  formattedString = formattedString.replace(/(\n{2,})/g, "\n");
-
-  // Ensure a single line break after the TX section but before any spec or following content
-  formattedString = formattedString.replace(
-    /(TX:[^\n]*\n(?:\s+.*\n)*)/g,
-    "$1\n"
-  );
-
-  // Remove unnecessary trailing newlines or spaces, but keep the required one after TX:
-  formattedString = formattedString.trimEnd();
-
-  return formattedString;
-}
-
 
   const handleDrop = (
     event,
@@ -172,6 +183,12 @@ function formattedConstructionNotes(note) {
                 const constructionNotesFormatted =
                   formattedConstructionNotes(constructionNotes);
 
+                const attacherCompany =
+                  Object.values(attributes?.construction_notes || [])
+                    .map((note) => note.attacher)
+                    .filter((attacher) => attacher) // Filter out any undefined or empty values
+                    .join(", ") || "N/A";
+
                 const proposedPoleSpec =
                   attributes?.proposed_pole_spec?.["button_added"] ||
                   attributes?.proposed_pole_spec?.["-Imported"] ||
@@ -199,8 +216,6 @@ function formattedConstructionNotes(note) {
                     )
                     .filter((company) => company) || "N/A";
 
-                    // const jobPoleReplacementCount = proposedPoleSpec
-
                 //   const njunsData =
                 //  "RPL " + poleCount + " station " + poleTag + " " + poleLatLong + " " + proposedPoleSize +
                 //    "county " + "cross street " + "city" + " " + poleJuCompanies + " " + poleOwner;
@@ -213,6 +228,7 @@ function formattedConstructionNotes(note) {
                   poleCount,
                   poleTag,
                   constructionNotes,
+                  attacherCompany,
                   proposedPoleSpec,
                   poleLatLong,
                   poleJuCompanies,
@@ -351,8 +367,10 @@ function formattedConstructionNotes(note) {
           <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
             {/* Display pole stats */}
             <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">Pole Stats:</h3>
+              <h3 className="text-lg font-semibold mb-2">Job Stats:</h3>
               <p>Total Poles/Locations: {jobStats.totalPoles}</p>
+              <p>APC Worked Poles: {jobStats.apcWorkedPoles}</p>
+              <p>APC Non-PCO Work Locations: {jobStats.apcNonPco}</p>
               <p>Poles Changed Out: {jobStats.changedOutPoles}</p>
             </div>
             <h3 className="text-lg font-semibold mb-4">Job Data:</h3>
