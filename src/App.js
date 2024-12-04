@@ -6,6 +6,7 @@ function calculatePoleStats(parsedData) {
   let totalPoles = 0;
   let changedOutPoles = 0;
   let apcWorkedPoles = 0;
+  let midspanPoles = 0;
   let apcNonPco = 0;
   parsedData.forEach((item) => {
     // Add to the total pole count
@@ -14,21 +15,30 @@ function calculatePoleStats(parsedData) {
     // Increment changed-out poles if there's a valid proposed pole spec
     if (
       item.proposedPoleSpec !== "N/A" &&
-      item.constructionNotesFormatted.toUpperCase().includes("POLE")
+      item.constructionNotesFormatted.toUpperCase().includes("POLE") && item.constructionNotesFormatted.toUpperCase().includes("RM")
     ) {
       changedOutPoles += 1;
     }
-
+   if (
+     (item.constructionNotesFormatted.toUpperCase().includes("GPS") ||
+       item.constructionNotesFormatted
+         .toUpperCase()
+         .includes("SET NEW POLE") || item.poleTag.toUpperCase().includes("NEW POLE")) &&
+     item.proposedPoleSpec !== "N/A"
+   ) {
+     midspanPoles += 1;
+   }
     if (
       item.attacherCompany &&
       item.attacherCompany.includes("Alabama Power")
     ) {
       apcWorkedPoles += 1;
     }
-    apcNonPco = apcWorkedPoles - changedOutPoles;
+    apcNonPco = apcWorkedPoles - changedOutPoles - midspanPoles;
+ 
   });
 
-  return { totalPoles, changedOutPoles, apcWorkedPoles, apcNonPco };
+  return { totalPoles, changedOutPoles, apcWorkedPoles, apcNonPco, midspanPoles };
 }
 
 function App() {
@@ -370,6 +380,7 @@ function App() {
               <h3 className="text-lg font-semibold mb-2">Job Stats:</h3>
               <p>Total Poles/Locations: {jobStats.totalPoles}</p>
               <p>APC Worked Poles: {jobStats.apcWorkedPoles}</p>
+              <p>Midspan Poles: {jobStats.midspanPoles}</p>
               <p>APC Non-PCO Work Locations: {jobStats.apcNonPco}</p>
               <p>Poles Changed Out: {jobStats.changedOutPoles}</p>
             </div>
