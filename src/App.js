@@ -170,7 +170,8 @@ function App() {
                   Object.values(attributes.node_type)[0] ||
                   "N/A";
 
-                if (nodeType !== "pole") return;
+                if (nodeType?.toLowerCase() !== "pole") return;
+
                 const poleOwner =
                   Object.values(attributes.pole_owner)[0] ||
                   attributes?.pole_owner?.["-Imported"] ||
