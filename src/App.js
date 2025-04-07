@@ -366,14 +366,16 @@ function App() {
         // 🧠 Determine formattedTag display logic
          // Determine formatted tag display
   let displayTag = "";
-  if (tag) {
-    const upperTag = tag.toUpperCase();
-    if (upperTag.includes("INSTALL") || upperTag.includes("REMOVE")) {
-      displayTag = tag;
-    } else {
-      displayTag = `POLE TAG# ${tag}`;
-    }
+if (tag) {
+  const trimmedTag = tag.trim();
+  const poleTagPattern = /^[1-4]-\d+$/; // Matches 1-xxxxx, 2-xxxxx, etc.
+
+  if (poleTagPattern.test(trimmedTag)) {
+    displayTag = `POLE TAG# ${trimmedTag}`;
+  } else {
+    displayTag = trimmedTag;
   }
+}
 
   let callouts = [];
   let outputLines = [];
@@ -382,17 +384,17 @@ function App() {
   outputLines.push(`LOC ${location} - ${displayTag}`);
 
   if (rm) {
-    const rmLines = formatMultiline("RM", rm, "     ");
+    const rmLines = formatMultiline("RM", rm, "        ");
     callouts.push(...rmLines);
     outputLines.push(...rmLines);
   }
   if (install) {
-    const inLines = formatMultiline("IN", install, "     ");
+    const inLines = formatMultiline("IN", install, "      ");
     callouts.push(...inLines);
     outputLines.push(...inLines);
   }
   if (tx) {
-    const txLines = formatMultiline("TX", tx, "     ");
+    const txLines = formatMultiline("TX", tx, "       ");
     callouts.push(...txLines);
     outputLines.push(...txLines);
   }
@@ -637,7 +639,7 @@ const handleCopy = (text, index) => {
                         <strong>Loc Number:</strong> {item.poleCount}
                       </p>
                       <p className="col-span-2"></p>
-                      <p className="col-span-3 whitespace-pre-wrap ">
+                      <p className="col-span-3 whitespace-pre-wrap font-[Arial]">
                         <strong>Callouts:</strong> <br />
                         {`LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`
                           .split("\n")
@@ -649,9 +651,6 @@ const handleCopy = (text, index) => {
                           ))}
                       </p>
                       <div className="col-span-2 flex flex-col items-center">
-                        <p>
-                          <strong>Copy:</strong>
-                        </p>
                         <button
                           onClick={() =>
                             handleCopy(
