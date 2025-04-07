@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
 
 function calculatePoleStats(parsedData) {
   let totalPoles = 0;
@@ -15,19 +17,21 @@ function calculatePoleStats(parsedData) {
     // Increment changed-out poles if there's a valid proposed pole spec
     if (
       item.proposedPoleSpec !== "N/A" &&
-      item.constructionNotesFormatted.toUpperCase().includes("POLE") && item.constructionNotesFormatted.toUpperCase().includes("RM")
+      item.constructionNotesFormatted.toUpperCase().includes("POLE") &&
+      item.constructionNotesFormatted.toUpperCase().includes("RM")
     ) {
       changedOutPoles += 1;
     }
-   if (
-     (item.constructionNotesFormatted.toUpperCase().includes("GPS") ||
-       item.constructionNotesFormatted
-         .toUpperCase()
-         .includes("SET NEW POLE") || item.poleTag.toUpperCase().includes("NEW POLE")) &&
-     item.proposedPoleSpec !== "N/A"
-   ) {
-     midspanPoles += 1;
-   }
+    if (
+      (item.constructionNotesFormatted.toUpperCase().includes("GPS") ||
+        item.constructionNotesFormatted
+          .toUpperCase()
+          .includes("SET NEW POLE") ||
+        item.poleTag.toUpperCase().includes("NEW POLE")) &&
+      item.proposedPoleSpec !== "N/A"
+    ) {
+      midspanPoles += 1;
+    }
     if (
       item.attacherCompany &&
       item.attacherCompany.includes("Alabama Power")
@@ -35,10 +39,15 @@ function calculatePoleStats(parsedData) {
       apcWorkedPoles += 1;
     }
     apcNonPco = apcWorkedPoles - changedOutPoles - midspanPoles;
- 
   });
 
-  return { totalPoles, changedOutPoles, apcWorkedPoles, apcNonPco, midspanPoles };
+  return {
+    totalPoles,
+    changedOutPoles,
+    apcWorkedPoles,
+    apcNonPco,
+    midspanPoles,
+  };
 }
 
 function App() {
@@ -48,8 +57,10 @@ function App() {
   const [jobNumber, setJobNumber] = useState("");
   const [darkMode, setDarkMode] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState(null); // Track the copied button index
+  const [copiedAll, setCopiedAll] = useState(false);
   const [hideNoWork, setHideNoWork] = useState(true); // State to manage hiding locations with "NO APC WORK"
-
+ const [excelOutput, setExcelOutput] = useState("");
+ const [parsedExcelData, setParsedExcelData] = useState([]);
   const jobStats = calculatePoleStats(parsedData); // Call function to get job statistics
 
   // Function to toggle dark mode
@@ -132,16 +143,35 @@ function App() {
     return formattedString;
   }
 
-  const handleDrop = (
+  function formatMultiline(label, text, indent, isStar = false) {
+    const lines = text.split(/\r?\n/);
+    return lines.map((line, idx) => {
+      if (isStar) {
+        return `*${indent}${line}`;
+      }
+      return idx === 0 ? `${label}: ${line}` : `${indent}${line}`;
+    });
+  }
+
+  const handleDrop = async (
     event,
     setParsedData,
     setIsJsonUploaded,
     setErrorMessage,
-    setJobNumber
+    setJobNumber,
+    setExcelOutput,
+    setParsedExcelData
   ) => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
-    if (file && file.type === "application/json") {
+    const fileName = file.name;
+    const isJson = file && file.type === "application/json";
+    const isExcel =
+      fileName.endsWith(".xlsx") ||
+      fileName.endsWith(".xls") ||
+      fileName.endsWith(".csv");
+
+    if (isJson) {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -312,19 +342,96 @@ function App() {
         }
       };
       reader.readAsText(file);
+    } else if (isExcel) {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      let structured = [];
+      let lines = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const location = row[0]?.toString().trim();
+        const tag = row[1]?.toString().trim();
+        const rm = row[2]?.toString().trim();
+        const install = row[3]?.toString().trim();
+        const tx = row[4]?.toString().trim();
+        const note = row[5]?.toString().trim();
+
+        const hasContent = rm || install || tx || note;
+        if (!location || !hasContent) continue;
+
+        // 🧠 Determine formattedTag display logic
+         // Determine formatted tag display
+  let displayTag = "";
+  if (tag) {
+    const upperTag = tag.toUpperCase();
+    if (upperTag.includes("INSTALL") || upperTag.includes("REMOVE")) {
+      displayTag = tag;
+    } else {
+      displayTag = `POLE TAG# ${tag}`;
+    }
+  }
+
+  let callouts = [];
+  let outputLines = [];
+
+  // Add LOC line to outputLines
+  outputLines.push(`LOC ${location} - ${displayTag}`);
+
+  if (rm) {
+    const rmLines = formatMultiline("RM", rm, "     ");
+    callouts.push(...rmLines);
+    outputLines.push(...rmLines);
+  }
+  if (install) {
+    const inLines = formatMultiline("IN", install, "     ");
+    callouts.push(...inLines);
+    outputLines.push(...inLines);
+  }
+  if (tx) {
+    const txLines = formatMultiline("TX", tx, "     ");
+    callouts.push(...txLines);
+    outputLines.push(...txLines);
+  }
+
+ if (note) {
+  callouts.push(""); // ➕ Add blank line before notes
+   outputLines.push(""); // ➕ Add blank line before notes
+   const noteLines = note.replace(/\r/g, "").split("\n");
+   noteLines.forEach((line) => {
+     const trimmed = line.trim();
+     callouts.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
+     outputLines.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
+   });
+ }
+
+  outputLines.push(""); // Blank line for spacing
+  lines.push(...outputLines); // Add this location's formatted output to final list
+
+  structured.push({
+    poleCount: location,
+    poleTag: displayTag,
+    constructionNotes: [rm, install, tx, note].filter(Boolean).join(", "),
+    constructionNotesFormatted: callouts.join("\n"),
+  });
+      }
+      setParsedExcelData(structured);
+      setExcelOutput(lines.join("\n"));
     }
   };
 
-  const handleCopy = (text, index) => {
-    const capitalizedText = text.toUpperCase();
-    navigator.clipboard.writeText(capitalizedText);
-    setCopiedIndex(index); // Set the index of the copied button
+const handleCopy = (text, index) => {
+  const capitalizedText = text.toUpperCase();
+  navigator.clipboard.writeText(capitalizedText);
 
-    // Reset the copied text after 1.5 seconds
-    setTimeout(() => {
-      setCopiedIndex(null);
-    }, 1500);
-  };
+  if (index >= 0) {
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 1500);
+  }
+};
 
   return (
     <div
@@ -386,6 +493,7 @@ function App() {
               <p>Poles Changed Out: {jobStats.changedOutPoles}</p>
             </div>
             <h3 className="text-lg font-semibold mb-4">Job Data:</h3>
+
             {isJsonUploaded && (
               <button
                 onClick={handleToggleHideNoWork}
@@ -452,7 +560,7 @@ function App() {
                               handleCopy(
                                 "LOC " +
                                   item.poleCount +
-                                  ": POLE TAG# " +
+                                  "- POLE TAG# " +
                                   item.poleTag +
                                   "\n \n" +
                                   item.constructionNotesFormatted,
@@ -470,6 +578,98 @@ function App() {
               </div>
             </div>
           </div>
+        ) : excelOutput ? (
+          parsedExcelData.length > 0 && (
+            <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
+              <h3 className="text-lg font-semibold mb-4">Excel Callouts:</h3>
+              {/* <button
+                onClick={() => {
+                  handleCopy(excelOutput, -1);
+                  setCopiedAll(true);
+                  setTimeout(() => setCopiedAll(false), 1500);
+                }}
+                className={`mb-4 py-2 px-4 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none`}
+              >
+                {copiedAll ? "Copied!" : "Copy All Locations"}
+              </button> */}
+              <button
+                onClick={() => {
+                  const doc = new jsPDF();
+                  const lines = excelOutput.toUpperCase().split("\n");
+
+                  // Add text line by line
+                  let y = 10; // Starting Y position
+
+                  lines.forEach((line) => {
+                    doc.text(line, 10, y);
+
+                    if (line.startsWith("LOC ")) {
+                      y += 15;
+                    } else {
+                      y += 7;
+                    }
+                  });
+
+                  doc.save("Callouts.pdf");
+                }}
+                className={`mb-4 py-2 px-4 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none`}
+              >
+                Download Callouts
+              </button>
+              <div className="grid gap-4">
+                {parsedExcelData.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`p-2 rounded ${
+                      darkMode
+                        ? "bg-custom-light"
+                        : "bg-gray-50 border-b border-gray-200"
+                    }`}
+                  >
+                    <div
+                      className={`p-2 rounded ${
+                        darkMode
+                          ? "bg-custom-light"
+                          : "bg-gray-50 border-b border-gray-200"
+                      } grid grid-cols-9 gap-4`}
+                    >
+                      <p className="col-span-2">
+                        <strong>Loc Number:</strong> {item.poleCount}
+                      </p>
+                      <p className="col-span-2"></p>
+                      <p className="col-span-3 whitespace-pre-wrap ">
+                        <strong>Callouts:</strong> <br />
+                        {`LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`
+                          .split("\n")
+                          .map((line, i) => (
+                            <React.Fragment key={i}>
+                              {line}
+                              <br />
+                            </React.Fragment>
+                          ))}
+                      </p>
+                      <div className="col-span-2 flex flex-col items-center">
+                        <p>
+                          <strong>Copy:</strong>
+                        </p>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              `LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`,
+                              index
+                            )
+                          }
+                          className={`py-2 my-auto px-12 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
+                        >
+                          {copiedIndex === index ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
         ) : (
           <div
             onDragOver={(e) => e.preventDefault()}
@@ -479,7 +679,9 @@ function App() {
                 setParsedData,
                 setIsJsonUploaded,
                 setErrorMessage,
-                setJobNumber
+                setJobNumber,
+                setExcelOutput,
+                setParsedExcelData
               )
             }
             className={`w-full h-48 border-4 border-dashed ${
@@ -488,7 +690,7 @@ function App() {
                 : "border-gray-950 bg-white"
             } flex items-center justify-center text-center cursor-pointer hover:border-gray-500 transition duration-300`}
           >
-            Drop your JSON file here
+            Drop your JSON or XLSX file here
           </div>
         )}
       </main>
