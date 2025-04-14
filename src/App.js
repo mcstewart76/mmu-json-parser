@@ -57,10 +57,10 @@ function App() {
   const [jobNumber, setJobNumber] = useState("");
   const [darkMode, setDarkMode] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState(null); // Track the copied button index
-  const [copiedAll, setCopiedAll] = useState(false);
+  // const [copiedAll, setCopiedAll] = useState(false);
   const [hideNoWork, setHideNoWork] = useState(true); // State to manage hiding locations with "NO APC WORK"
- const [excelOutput, setExcelOutput] = useState("");
- const [parsedExcelData, setParsedExcelData] = useState([]);
+  const [excelOutput, setExcelOutput] = useState("");
+  const [parsedExcelData, setParsedExcelData] = useState([]);
   const jobStats = calculatePoleStats(parsedData); // Call function to get job statistics
 
   // Function to toggle dark mode
@@ -364,76 +364,122 @@ function App() {
         if (!location || !hasContent) continue;
 
         // 🧠 Determine formattedTag display logic
-         // Determine formatted tag display
-  let displayTag = "";
-if (tag) {
-  const trimmedTag = tag.trim();
-  const poleTagPattern = /^[1-4]-\d+$/; // Matches 1-xxxxx, 2-xxxxx, etc.
+        // Determine formatted tag display
 
-  if (poleTagPattern.test(trimmedTag)) {
-    displayTag = `POLE TAG# ${trimmedTag}`;
-  } else {
-    displayTag = trimmedTag;
-  }
-}
+        let callouts = [];
+        let outputLines = [];
 
-  let callouts = [];
-  let outputLines = [];
+        let displayTag = "";
+        let trimmedTag = tag?.trim() || "";
+        const poleTagPattern = /^[1-4]-\d+$/;
 
-  // Add LOC line to outputLines
-  outputLines.push(`LOC ${location} - ${displayTag}`);
+        if (trimmedTag && poleTagPattern.test(trimmedTag)) {
+          displayTag = `POLE TAG# ${trimmedTag}`;
+        } else {
+          displayTag = trimmedTag; // this could still be empty or "INSTALL T# 123" etc.
+        }
 
-  if (rm) {
-    const rmLines = formatMultiline("RM", rm, "        ");
-    callouts.push(...rmLines);
-    outputLines.push(...rmLines);
-  }
-  if (install) {
-    const inLines = formatMultiline("IN", install, "      ");
-    callouts.push(...inLines);
-    outputLines.push(...inLines);
-  }
-  if (tx) {
-    const txLines = formatMultiline("TX", tx, "       ");
-    callouts.push(...txLines);
-    outputLines.push(...txLines);
-  }
+        console.log("Row Debug ----");
+        console.log("Raw tag:", tag);
+        console.log("Trimmed tag:", trimmedTag);
+        console.log("Display tag:", displayTag);
+        console.log(
+          "Final LOC line:",
+          `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
+        );
+        // ✅ Only include `- displayTag` if there's actual text
+        outputLines.push(
+          `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
+        );
 
- if (note) {
-  callouts.push(""); // ➕ Add blank line before notes
-   outputLines.push(""); // ➕ Add blank line before notes
-   const noteLines = note.replace(/\r/g, "").split("\n");
-   noteLines.forEach((line) => {
-     const trimmed = line.trim();
-     callouts.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
-     outputLines.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
-   });
- }
+        // Add LOC line with or without tag based on content
 
-  outputLines.push(""); // Blank line for spacing
-  lines.push(...outputLines); // Add this location's formatted output to final list
+        if (rm) {
+          const rmLines = formatMultiline("RM", rm, "        ");
+          callouts.push(...rmLines);
+          outputLines.push(...rmLines);
+        }
+        if (install) {
+          const inLines = formatMultiline("IN", install, "      ");
+          callouts.push(...inLines);
+          outputLines.push(...inLines);
+        }
+        if (tx) {
+          const txLines = formatMultiline("TX", tx, "       ");
+          callouts.push(...txLines);
+          outputLines.push(...txLines);
+        }
 
-  structured.push({
-    poleCount: location,
-    poleTag: displayTag,
-    constructionNotes: [rm, install, tx, note].filter(Boolean).join(", "),
-    constructionNotesFormatted: callouts.join("\n"),
-  });
+        if (note) {
+          callouts.push(""); // ➕ Add blank line before notes
+          outputLines.push(""); // ➕ Add blank line before notes
+          const noteLines = note.replace(/\r/g, "").split("\n");
+          noteLines.forEach((line) => {
+            const trimmed = line.trim();
+            callouts.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
+            outputLines.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
+          });
+        }
+
+        outputLines.push(""); // Blank line for spacing
+        lines.push(...outputLines); // Add this location's formatted output to final list
+
+        structured.push({
+          poleCount: location,
+          poleTag: displayTag,
+          constructionNotes: [rm, install, tx, note].filter(Boolean).join(", "),
+          constructionNotesFormatted: callouts.join("\n"),
+        });
       }
       setParsedExcelData(structured);
       setExcelOutput(lines.join("\n"));
     }
   };
 
-const handleCopy = (text, index) => {
-  const capitalizedText = text.toUpperCase();
-  navigator.clipboard.writeText(capitalizedText);
+  const handleCopy = (text, index) => {
+    const capitalizedText = text.toUpperCase();
+    navigator.clipboard.writeText(capitalizedText);
 
-  if (index >= 0) {
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 1500);
-  }
-};
+    if (index >= 0) {
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 1500);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    const margin = 10;
+    const lineHeight = 6;
+    const pageHeight = doc.internal.pageSize.height;
+
+    doc.setFontSize(10);
+    let y = margin;
+
+    parsedExcelData.forEach((item) => {
+      const lines =
+        `LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`.split(
+          "\n"
+        );
+      const blockHeight = (lines.length + 3) * lineHeight;
+
+      if (y + blockHeight > pageHeight) {
+        doc.addPage();
+        y = margin;
+      }
+
+      lines.forEach((line) => {
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
+
+      y += 2;
+      doc.setDrawColor(150);
+      doc.line(margin, y, doc.internal.pageSize.width - margin, y);
+      y += 4;
+    });
+
+    doc.save("locations_output.pdf");
+  };
 
   return (
     <div
@@ -584,36 +630,8 @@ const handleCopy = (text, index) => {
           parsedExcelData.length > 0 && (
             <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
               <h3 className="text-lg font-semibold mb-4">Excel Callouts:</h3>
-              {/* <button
-                onClick={() => {
-                  handleCopy(excelOutput, -1);
-                  setCopiedAll(true);
-                  setTimeout(() => setCopiedAll(false), 1500);
-                }}
-                className={`mb-4 py-2 px-4 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none`}
-              >
-                {copiedAll ? "Copied!" : "Copy All Locations"}
-              </button> */}
               <button
-                onClick={() => {
-                  const doc = new jsPDF();
-                  const lines = excelOutput.toUpperCase().split("\n");
-
-                  // Add text line by line
-                  let y = 10; // Starting Y position
-
-                  lines.forEach((line) => {
-                    doc.text(line, 10, y);
-
-                    if (line.startsWith("LOC ")) {
-                      y += 15;
-                    } else {
-                      y += 7;
-                    }
-                  });
-
-                  doc.save("Callouts.pdf");
-                }}
+                onClick={handleDownloadPDF}
                 className={`mb-4 py-2 px-4 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none`}
               >
                 Download Callouts
@@ -641,7 +659,9 @@ const handleCopy = (text, index) => {
                       <p className="col-span-2"></p>
                       <p className="col-span-3 whitespace-pre-wrap font-[Arial]">
                         <strong>Callouts:</strong> <br />
-                        {`LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`
+                        {`LOC ${item.poleCount}${
+                          item.poleTag.trim() ? ` - ${item.poleTag}` : ""
+                        }\n\n${item.constructionNotesFormatted}`
                           .split("\n")
                           .map((line, i) => (
                             <React.Fragment key={i}>
@@ -654,7 +674,9 @@ const handleCopy = (text, index) => {
                         <button
                           onClick={() =>
                             handleCopy(
-                              `LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`,
+                              `LOC ${item.poleCount}${
+                                item.poleTag.trim() ? ` - ${item.poleTag}` : ""
+                              }\n\n${item.constructionNotesFormatted}`,
                               index
                             )
                           }
