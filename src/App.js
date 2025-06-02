@@ -3,6 +3,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
+import parseExcelJobSummary from "./utils/parseExcelJobSummary";
+import ExcelJobSummaryDisplay from "./components/ExcelJobSummaryDisplay";
 
 function calculatePoleStats(parsedData) {
   let totalPoles = 0;
@@ -11,10 +13,8 @@ function calculatePoleStats(parsedData) {
   let midspanPoles = 0;
   let apcNonPco = 0;
   parsedData.forEach((item) => {
-    // Add to the total pole count
-    totalPoles += 1; // Count each item as one location/pole
+    totalPoles += 1;
 
-    // Increment changed-out poles if there's a valid proposed pole spec
     if (
       item.proposedPoleSpec !== "N/A" &&
       item.constructionNotesFormatted.toUpperCase().includes("POLE") &&
@@ -56,88 +56,74 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [jobNumber, setJobNumber] = useState("");
   const [darkMode, setDarkMode] = useState(true);
-  const [copiedIndex, setCopiedIndex] = useState(null); // Track the copied button index
-  // const [copiedAll, setCopiedAll] = useState(false);
-  const [hideNoWork, setHideNoWork] = useState(true); // State to manage hiding locations with "NO APC WORK"
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [hideNoWork, setHideNoWork] = useState(true);
   const [excelOutput, setExcelOutput] = useState("");
   const [parsedExcelData, setParsedExcelData] = useState([]);
-  const jobStats = calculatePoleStats(parsedData); // Call function to get job statistics
+  const jobStats = calculatePoleStats(parsedData);
+  const [excelJobSummary, setExcelJobSummary] = useState(null);
 
   // Function to toggle dark mode
   const handleToggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
 
-  // Function to toggle hiding locations with "NO APC WORK"
   const handleToggleHideNoWork = () => {
     setHideNoWork(!hideNoWork);
   };
 
   function formattedConstructionNotes(note) {
-    // Split the note into lines
     const lines = note.split("\n");
 
-    // Initialize an array to hold the formatted lines
     let formattedLines = [];
 
-    // Define the keywords that need special formatting
     const keywords = ["RM:", "IN:", "TX:"];
 
     let currentKeyword = "";
-    let addSpacing = false; // To control when to add spacing
+    let addSpacing = false;
 
-    // Loop through each line and apply formatting
     for (let i = 0; i < lines.length; i++) {
       let trimmedLine = lines[i].trim();
 
-      // Check if the line starts with any of the keywords
       if (keywords.some((keyword) => trimmedLine.startsWith(keyword))) {
-        currentKeyword = trimmedLine.split(":")[0] + ":"; // Set the current keyword
-        const nextLine = lines[i + 1]?.trim(); // Get the next line
+        currentKeyword = trimmedLine.split(":")[0] + ":";
+        const nextLine = lines[i + 1]?.trim();
         formattedLines.push(`${currentKeyword} ${nextLine}`);
 
-        // Set addSpacing to true to start adding spaces after this line
         addSpacing = true;
 
-        // Skip the next line since it's already processed
         i++;
       } else if (
         addSpacing &&
         (currentKeyword === "RM:" || currentKeyword === "TX:")
       ) {
-        // Add spacing for RM and TX, but stop after the first empty line or special line
         if (trimmedLine.startsWith("*") || trimmedLine === "") {
           addSpacing = false;
-          formattedLines.push(trimmedLine); // No additional spacing
+          formattedLines.push(trimmedLine);
         } else {
-          formattedLines.push("       " + trimmedLine); // 7 spaces for RM and TX
+          formattedLines.push("       " + trimmedLine);
         }
       } else if (addSpacing && currentKeyword === "IN:") {
-        // Add spacing for IN, but stop after the first empty line or special line
         if (trimmedLine.startsWith("*") || trimmedLine === "") {
           addSpacing = false;
-          formattedLines.push(trimmedLine); // No additional spacing
+          formattedLines.push(trimmedLine);
         } else {
-          formattedLines.push("     " + trimmedLine); // 5 spaces for IN
+          formattedLines.push("     " + trimmedLine);
         }
       } else {
-        formattedLines.push(trimmedLine); // Default line
+        formattedLines.push(trimmedLine);
       }
     }
 
-    // Join the formatted lines back together
     let formattedString = formattedLines.join("\n");
 
-    // Trim extra newlines after RM and IN sections
     formattedString = formattedString.replace(/(\n{2,})/g, "\n");
 
-    // Ensure a single line break after the TX section but before any spec or following content
     formattedString = formattedString.replace(
       /(TX:[^\n]*\n(?:\s+.*\n)*)/g,
       "$1\n"
     );
 
-    // Remove unnecessary trailing newlines or spaces, but keep the required one after TX:
     formattedString = formattedString.trimEnd();
 
     return formattedString;
@@ -227,15 +213,13 @@ function App() {
                 const attacherCompany =
                   Object.values(attributes?.construction_notes || [])
                     .map((note) => note.attacher)
-                    .filter((attacher) => attacher) // Filter out any undefined or empty values
+                    .filter((attacher) => attacher)
                     .join(", ") || "N/A";
 
                 const proposedPoleSpec =
                   attributes?.proposed_pole_spec?.["button_added"] ||
                   attributes?.proposed_pole_spec?.["-Imported"] ||
                   "N/A";
-                // const proposedPoleSize =
-                // proposedPoleSpec.trim().split(" ")[0].replace("-", "/") || "N/A";
 
                 const poleLatLong =
                   node?.latitude + ", " + node.longitude ||
@@ -257,11 +241,6 @@ function App() {
                     )
                     .filter((company) => company) || "N/A";
 
-                //   const njunsData =
-                //  "RPL " + poleCount + " station " + poleTag + " " + poleLatLong + " " + proposedPoleSize +
-                //    "county " + "cross street " + "city" + " " + poleJuCompanies + " " + poleOwner;
-
-                // console.log(njunsData);
                 data.push({
                   id: nodeId,
                   type: nodeType,
@@ -348,6 +327,40 @@ function App() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+      const calloutSheet =
+        workbook.Sheets["Callout Template"] || workbook.Sheets["Sheet1"];
+      const calloutRowsRaw = XLSX.utils.sheet_to_json(calloutSheet, {
+        defval: "",
+      });
+      const calloutRows = calloutRowsRaw.map((row) => ({
+        location: row["LOC #"] || row["Location"] || "",
+        rm: row["REMOVALS"] || row["RM"] || "",
+        in: row["INSTALLS"] || row["IN"] || row["Install"] || "",
+        tx: row["TRANSFERS"] || row["TX"] || "",
+        notes:
+          row["SPEC/NOTES"] ||
+          row["Note/Spec"] ||
+          row["Notes"] ||
+          row["Spec"] ||
+          "",
+      }));
+
+      const boreSheet = workbook.Sheets["Bore"];
+      const boreData = {
+        primaryUG: Number(boreSheet?.D4?.v || 0),
+        secondaryUG: Number((boreSheet?.P4?.v || 0) + (boreSheet?.H4?.v || 0)),
+        serviceUG: Number((boreSheet?.L4?.v || 0) + (boreSheet?.T4?.v || 0)),
+        totalBoreFootage: Number(boreSheet?.AC3?.v || boreSheet?.AC4?.v || 0),
+      };
+
+      const parsedExcelData = {
+        "Callout Template": calloutRows,
+        Bore: boreData,
+      };
+
+      const jobSummary = parseExcelJobSummary(parsedExcelData);
+      setExcelJobSummary(jobSummary);
+
       let structured = [];
       let lines = [];
 
@@ -363,9 +376,6 @@ function App() {
         const hasContent = rm || install || tx || note;
         if (!location || !hasContent) continue;
 
-        // 🧠 Determine formattedTag display logic
-        // Determine formatted tag display
-
         let callouts = [];
         let outputLines = [];
 
@@ -379,15 +389,6 @@ function App() {
           displayTag = trimmedTag; // this could still be empty or "INSTALL T# 123" etc.
         }
 
-        console.log("Row Debug ----");
-        console.log("Raw tag:", tag);
-        console.log("Trimmed tag:", trimmedTag);
-        console.log("Display tag:", displayTag);
-        console.log(
-          "Final LOC line:",
-          `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
-        );
-        // ✅ Only include `- displayTag` if there's actual text
         outputLines.push(
           `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
         );
@@ -629,6 +630,9 @@ function App() {
         ) : excelOutput ? (
           parsedExcelData.length > 0 && (
             <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
+              {excelJobSummary && (
+                <ExcelJobSummaryDisplay summary={excelJobSummary} />
+              )}
               <h3 className="text-lg font-semibold mb-4">Excel Callouts:</h3>
               <button
                 onClick={handleDownloadPDF}
