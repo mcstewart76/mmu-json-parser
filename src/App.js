@@ -472,10 +472,15 @@ function App() {
     let y = margin;
 
     parsedExcelData.forEach((item) => {
-      const lines =
-        `LOC ${item.poleCount} - ${item.poleTag}\n\n${item.constructionNotesFormatted}`.split(
-          "\n"
-        );
+      const lines = (
+        (isGPC
+          ? `WL ${item.poleCount}${
+              item.poleTag.trim() ? `\n${item.poleTag}` : ""
+            }\n\n`
+          : `LOC ${item.poleCount}${
+              item.poleTag.trim() ? ` - ${item.poleTag}` : ""
+            }\n\n`) + item.constructionNotesFormatted
+      ).split("\n");
       const blockHeight = (lines.length + 3) * lineHeight;
 
       if (y + blockHeight > pageHeight) {
