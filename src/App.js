@@ -62,6 +62,7 @@ function App() {
   const [parsedExcelData, setParsedExcelData] = useState([]);
   const jobStats = calculatePoleStats(parsedData);
   const [excelJobSummary, setExcelJobSummary] = useState(null);
+  const [isGPC, setIsGPC] = useState(false);
 
   // Function to toggle dark mode
   const handleToggleDarkMode = () => {
@@ -326,7 +327,11 @@ function App() {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
+      const gpcFlag = (sheet.G2?.v || "")
+        .toString()
+        .toUpperCase()
+        .includes("GPC");
+      setIsGPC(gpcFlag);
       const calloutSheet =
         workbook.Sheets["Callout Template"] || workbook.Sheets["Sheet1"];
       const calloutRowsRaw = XLSX.utils.sheet_to_json(calloutSheet, {
@@ -389,9 +394,19 @@ function App() {
           displayTag = trimmedTag; // this could still be empty or "INSTALL T# 123" etc.
         }
 
-        outputLines.push(
-          `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
-        );
+        if (isGPC) {
+          outputLines.push(`**WL ${location}**`);
+        } else {
+          outputLines.push(
+            `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
+          );
+        }
+        if (isGPC) {
+          outputLines.push(""); // Blank line between WL and notes
+        }
+        // outputLines.push(
+        //   // `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
+        // );
 
         // Add LOC line with or without tag based on content
 
@@ -630,7 +645,7 @@ function App() {
         ) : excelOutput ? (
           parsedExcelData.length > 0 && (
             <div className={`${darkMode ? "text-gray-50" : "text-gray-800"}`}>
-              {excelJobSummary && (
+              {excelJobSummary && !isGPC && (
                 <ExcelJobSummaryDisplay summary={excelJobSummary} />
               )}
               <h3 className="text-lg font-semibold mb-4">Excel Callouts:</h3>
@@ -663,9 +678,15 @@ function App() {
                       <p className="col-span-2"></p>
                       <p className="col-span-3 whitespace-pre-wrap font-[Arial]">
                         <strong>Callouts:</strong> <br />
-                        {`LOC ${item.poleCount}${
-                          item.poleTag.trim() ? ` - ${item.poleTag}` : ""
-                        }\n\n${item.constructionNotesFormatted}`
+                        {(
+                          (isGPC
+                            ? `WL ${item.poleCount}${
+                                item.poleTag.trim() ? `\n${item.poleTag}` : ""
+                              }\n\n`
+                            : `LOC ${item.poleCount}${
+                                item.poleTag.trim() ? ` - ${item.poleTag}` : ""
+                              }\n\n`) + item.constructionNotesFormatted
+                        )
                           .split("\n")
                           .map((line, i) => (
                             <React.Fragment key={i}>
@@ -678,9 +699,19 @@ function App() {
                         <button
                           onClick={() =>
                             handleCopy(
-                              `LOC ${item.poleCount}${
-                                item.poleTag.trim() ? ` - ${item.poleTag}` : ""
-                              }\n\n${item.constructionNotesFormatted}`,
+                              `${
+                                isGPC
+                                  ? `WL ${item.poleCount}${
+                                      item.poleTag.trim()
+                                        ? `\n${item.poleTag}`
+                                        : ""
+                                    }\n\n`
+                                  : `LOC ${item.poleCount}${
+                                      item.poleTag.trim()
+                                        ? ` - ${item.poleTag}`
+                                        : ""
+                                    }\n\n`
+                              }${item.constructionNotesFormatted}`,
                               index
                             )
                           }
