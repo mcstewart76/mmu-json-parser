@@ -57,6 +57,8 @@ function App() {
   const [jobNumber, setJobNumber] = useState("");
   const [darkMode, setDarkMode] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [copiedNjunsIndex, setCopiedNjunsIndex] = useState(null);
+  const [copiedToCrewIndex, setCopiedToCrewIndex] = useState(null);
   const [hideNoWork, setHideNoWork] = useState(true);
   const [excelOutput, setExcelOutput] = useState("");
   const [parsedExcelData, setParsedExcelData] = useState([]);
@@ -327,7 +329,7 @@ function App() {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      const gpcFlag = (sheet.G2?.v || "")
+      const gpcFlag = (sheet.H1?.v || sheet.G2?.v || "")
         .toString()
         .toUpperCase()
         .includes("GPC");
@@ -405,6 +407,7 @@ function App() {
         const install = row[3]?.toString().trim();
         const tx = row[4]?.toString().trim();
         const note = row[5]?.toString().trim();
+        const toCrew = row[6]?.toString().trim() || ""; // Column G
 
         const hasContent = rm || install || tx || note;
         if (!location || !hasContent) continue;
@@ -487,6 +490,7 @@ function App() {
           constructionNotes: [rm, install, tx, note].filter(Boolean).join(", "),
           constructionNotesFormatted: callouts.join("\n"),
           njunsNumber: matchedNjuns,
+          gText: toCrew,
         });
       }
       setParsedExcelData(structured);
@@ -501,6 +505,26 @@ function App() {
     if (index >= 0) {
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 1500);
+    }
+  };
+
+  const handleNjunsCopy = (text, index) => {
+    const capitalizedText = text.toUpperCase();
+    navigator.clipboard.writeText(capitalizedText);
+
+    if (index >= 0) {
+      setCopiedNjunsIndex(index);
+      setTimeout(() => setCopiedNjunsIndex(null), 1500);
+    }
+  };
+
+  const handleToCrewCopy = (text, index) => {
+    const capitalizedText = text.toUpperCase();
+    navigator.clipboard.writeText(capitalizedText);
+
+    if (index >= 0) {
+      setCopiedToCrewIndex(index);
+      setTimeout(() => setCopiedToCrewIndex(null), 1500);
     }
   };
 
@@ -719,10 +743,29 @@ function App() {
                           : "bg-gray-50 border-b border-gray-200"
                       } grid grid-cols-9 gap-4`}
                     >
-                        <p className="col-span-2">
+                      <div className="col-span-2">
+                        <p>
                           <strong>{isGPC ? "WL" : "Loc Number"}:</strong>{" "}
                           {item.poleCount}
                         </p>
+                        {item.gText?.trim() && (
+                          <div>
+                            <p className="mt-6 text-sm">Note To Crew:</p>
+                            <div
+                              onClick={() =>
+                                handleToCrewCopy(item.gText, index)
+                              }
+                              className={`mt-2 flex items-center justify-center px-3 py-2 rounded cursor-pointer select-text
+        ${darkMode ? "bg-custom-light text-white" : "bg-gray-100 text-gray-900"}
+        border border-gray-700 hover:border-gray-300`}
+                            >
+                              {copiedToCrewIndex === index
+                                ? "Copied!"
+                                : item.gText.toUpperCase()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <p className="col-span-2"></p>
                       <p className="col-span-3 whitespace-pre-wrap font-[Arial]">
                         <strong>Callouts:</strong> <br />
@@ -770,14 +813,14 @@ function App() {
                         {item.njunsNumber?.trim() && (
                           <button
                             onClick={() =>
-                              handleCopy(`NJUNS# ${item.njunsNumber.trim()}`)
+                              handleNjunsCopy(
+                                `NJUNS# ${item.njunsNumber.trim()}`,
+                                index
+                              )
                             }
-                            className="mt-2 py-2 px-12 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none"
-                            title={`Copy NJUNS for ${isGPC ? "WL" : "LOC"} ${
-                              item.poleCount
-                            }`}
+                            className="py-2 px-12 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none"
                           >
-                            Copy NJUNS
+                            {copiedNjunsIndex === index ? "Copied!" : "NJUNS#"}
                           </button>
                         )}
                       </div>
