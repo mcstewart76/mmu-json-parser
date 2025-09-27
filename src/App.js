@@ -363,6 +363,34 @@ function App() {
         Bore: boreData,
       };
 
+      // --- NJUNS sheet parsing ---
+      const njunsSheet = workbook.Sheets["NJUNS"];
+      let njunsByLoc = new Map();
+
+      if (njunsSheet) {
+        const njunsRows = XLSX.utils.sheet_to_json(njunsSheet, {
+          header: 1,
+          defval: "",
+        });
+
+        const startIdx =
+          njunsRows.length > 0 &&
+          typeof njunsRows[0][0] === "string" &&
+          /njuns|number|id/i.test(njunsRows[0][0])
+            ? 1
+            : 0;
+
+        for (let i = startIdx; i < njunsRows.length; i++) {
+          const row = njunsRows[i] || [];
+          const njunsNum = (row[0] ?? "").toString().trim();
+          const locValue = (row[2] ?? "").toString().trim();
+
+          if (njunsNum && locValue) {
+            njunsByLoc.set(locValue, njunsNum);
+          }
+        }
+      }
+
       const jobSummary = parseExcelJobSummary(parsedExcelData);
       setExcelJobSummary(jobSummary);
 
@@ -387,6 +415,7 @@ function App() {
         let displayTag = "";
         let trimmedTag = tag?.trim() || "";
         const poleTagPattern = /^[1-4]-\d+$/;
+        const matchedNjuns = njunsByLoc.get(location) || "";
 
         if (trimmedTag && poleTagPattern.test(trimmedTag)) {
           displayTag = `POLE TAG# ${trimmedTag}`;
@@ -430,10 +459,22 @@ function App() {
           callouts.push(""); // ➕ Add blank line before notes
           outputLines.push(""); // ➕ Add blank line before notes
           const noteLines = note.replace(/\r/g, "").split("\n");
+
           noteLines.forEach((line) => {
             const trimmed = line.trim();
-            callouts.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
-            outputLines.push(trimmed.startsWith("*") ? trimmed : `*${trimmed}`);
+
+            if (!trimmed) {
+              // Preserve intentional blank lines
+              callouts.push("");
+              outputLines.push("");
+              return;
+            }
+
+            const formattedLine = trimmed.startsWith("*")
+              ? trimmed
+              : `*${trimmed}`;
+            callouts.push(formattedLine);
+            outputLines.push(formattedLine);
           });
         }
 
@@ -445,6 +486,7 @@ function App() {
           poleTag: displayTag,
           constructionNotes: [rm, install, tx, note].filter(Boolean).join(", "),
           constructionNotesFormatted: callouts.join("\n"),
+          njunsNumber: matchedNjuns,
         });
       }
       setParsedExcelData(structured);
@@ -515,7 +557,7 @@ function App() {
         }`}
       >
         <div>
-          <h1 className="text-xl font-semibold">MMU JSON Parser</h1>
+          <h1 className="text-xl font-semibold">MMU Parser</h1>
           <span className="font-semibold text-xs">by Chris Stewart</span>
         </div>
         <div className="flex items-center">
@@ -677,9 +719,10 @@ function App() {
                           : "bg-gray-50 border-b border-gray-200"
                       } grid grid-cols-9 gap-4`}
                     >
-                      <p className="col-span-2">
-                        <strong>Loc Number:</strong> {item.poleCount}
-                      </p>
+                        <p className="col-span-2">
+                          <strong>{isGPC ? "WL" : "Loc Number"}:</strong>{" "}
+                          {item.poleCount}
+                        </p>
                       <p className="col-span-2"></p>
                       <p className="col-span-3 whitespace-pre-wrap font-[Arial]">
                         <strong>Callouts:</strong> <br />
@@ -724,6 +767,19 @@ function App() {
                         >
                           {copiedIndex === index ? "Copied!" : "Copy"}
                         </button>
+                        {item.njunsNumber?.trim() && (
+                          <button
+                            onClick={() =>
+                              handleCopy(`NJUNS# ${item.njunsNumber.trim()}`)
+                            }
+                            className="mt-2 py-2 px-12 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none"
+                            title={`Copy NJUNS for ${isGPC ? "WL" : "LOC"} ${
+                              item.poleCount
+                            }`}
+                          >
+                            Copy NJUNS
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
