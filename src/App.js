@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
 import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
 import parseExcelJobSummary from "./utils/parseExcelJobSummary";
 import ExcelJobSummaryDisplay from "./components/ExcelJobSummaryDisplay";
 
@@ -527,45 +528,45 @@ function App() {
     }
   };
 
-  // const handleDownloadPDF = () => {
-  //   const doc = new jsPDF();
-  //   const margin = 10;
-  //   const lineHeight = 6;
-  //   const pageHeight = doc.internal.pageSize.height;
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    const margin = 10;
+    const lineHeight = 6;
+    const pageHeight = doc.internal.pageSize.height;
 
-  //   doc.setFontSize(10);
-  //   let y = margin;
+    doc.setFontSize(10);
+    let y = margin;
 
-  //   parsedExcelData.forEach((item) => {
-  //     const lines = (
-  //       (isGPC
-  //         ? `WL ${item.poleCount}${
-  //             item.poleTag.trim() ? `\n${item.poleTag}` : ""
-  //           }\n\n`
-  //         : `LOC ${item.poleCount}${
-  //             item.poleTag.trim() ? ` - ${item.poleTag}` : ""
-  //           }\n\n`) + item.constructionNotesFormatted
-  //     ).split("\n");
-  //     const blockHeight = (lines.length + 3) * lineHeight;
+    parsedExcelData.forEach((item) => {
+      const lines = (
+        (isGPC
+          ? `WL ${item.poleCount}${
+              item.poleTag.trim() ? `\n${item.poleTag}` : ""
+            }\n\n`
+          : `LOC ${item.poleCount}${
+              item.poleTag.trim() ? ` - ${item.poleTag}` : ""
+            }\n\n`) + item.constructionNotesFormatted
+      ).split("\n");
+      const blockHeight = (lines.length + 3) * lineHeight;
 
-  //     if (y + blockHeight > pageHeight) {
-  //       doc.addPage();
-  //       y = margin;
-  //     }
+      if (y + blockHeight > pageHeight) {
+        doc.addPage();
+        y = margin;
+      }
 
-  //     lines.forEach((line) => {
-  //       doc.text(line, margin, y);
-  //       y += lineHeight;
-  //     });
+      lines.forEach((line) => {
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
 
-  //     y += 2;
-  //     doc.setDrawColor(150);
-  //     doc.line(margin, y, doc.internal.pageSize.width - margin, y);
-  //     y += 4;
-  //   });
+      y += 2;
+      doc.setDrawColor(150);
+      doc.line(margin, y, doc.internal.pageSize.width - margin, y);
+      y += 4;
+    });
 
-  //   doc.save("locations_output.pdf");
-  // };
+    doc.save("locations_output.pdf");
+  };
 
   return (
     <div
@@ -719,12 +720,12 @@ function App() {
                 <ExcelJobSummaryDisplay summary={excelJobSummary} />
               )}
               <h3 className="text-lg font-semibold mb-4">Excel Callouts:</h3>
-              {/* <button
+              <button
                 onClick={handleDownloadPDF}
                 className={`mb-4 py-2 px-4 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none`}
               >
                 Download Callouts
-              </button> */}
+              </button>
               <div className="grid gap-4">
                 {parsedExcelData.map((item, index) => (
                   <div
@@ -817,9 +818,9 @@ function App() {
                                 index
                               )
                             }
-                            className="py-2 px-4 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none"
+                            className="py-2 px-12 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none"
                           >
-                            {copiedNjunsIndex === index ? "Copied!" : `NJUNS# ${item.njunsNumber.trim()}`}
+                            {copiedNjunsIndex === index ? "Copied!" : "NJUNS#"}
                           </button>
                         )}
                       </div>
