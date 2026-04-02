@@ -328,7 +328,7 @@ function App() {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      const gpcFlag = (sheet.H1?.v || sheet.G2?.v || "")
+      const gpcFlag = (sheet.H1?.v || sheet.I1?.v || "")
         .toString()
         .toUpperCase()
         .includes("GPC");
@@ -407,6 +407,7 @@ function App() {
         const tx = row[4]?.toString().trim();
         const note = row[5]?.toString().trim();
         const toCrew = row[6]?.toString().trim() || ""; // Column G
+        const toGis = row[7]?.toString().trim() || ""; // Column H
 
         const hasContent = rm || install || tx || note;
         if (!location || !hasContent) continue;
@@ -490,6 +491,7 @@ function App() {
           constructionNotesFormatted: callouts.join("\n"),
           njunsNumber: matchedNjuns,
           gText: toCrew,
+          hText: toGis,
         });
       }
       setParsedExcelData(structured);
@@ -650,7 +652,7 @@ function App() {
                 {parsedData
                   .filter(
                     (item) =>
-                      !hideNoWork || item.constructionNotes !== "NO APC WORK"
+                      !hideNoWork || item.constructionNotes !== "NO APC WORK",
                   )
                   .map((item, index) => (
                     <div
@@ -698,7 +700,7 @@ function App() {
                                   item.poleTag +
                                   "\n \n" +
                                   item.constructionNotesFormatted,
-                                index
+                                index,
                               )
                             }
                             className={`py-2 my-auto px-12 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
@@ -764,6 +766,19 @@ function App() {
                             </div>
                           </div>
                         )}
+                        {item.hText?.trim() && (
+                          <div>
+                            <p className="mt-6 text-sm">Notes about location:</p>
+                            <div
+                              className={`mt-2 flex items-center justify-center px-3 py-2 rounded cursor-pointer select-text
+        ${darkMode ? "bg-custom-light text-white" : "bg-gray-100 text-gray-900"}
+        border border-gray-700 hover:border-gray-300`}
+                            >
+                              {item.hText}
+
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <p className="col-span-2"></p>
                       <p className="col-span-3 whitespace-pre-wrap font-[Arial]">
@@ -802,7 +817,7 @@ function App() {
                                         : ""
                                     }\n\n`
                               }${item.constructionNotesFormatted}`,
-                              index
+                              index,
                             )
                           }
                           className={`py-2 my-auto px-12 rounded bg-slate-500 text-white hover:bg-slate-700 focus:outline-none`}
@@ -814,7 +829,7 @@ function App() {
                             onClick={() =>
                               handleNjunsCopy(
                                 `NJUNS# ${item.njunsNumber.trim()}`,
-                                index
+                                index,
                               )
                             }
                             className="py-2 px-12 rounded bg-slate-600 text-white hover:bg-slate-700 focus:outline-none"
@@ -840,7 +855,7 @@ function App() {
                 setErrorMessage,
                 setJobNumber,
                 setExcelOutput,
-                setParsedExcelData
+                setParsedExcelData,
               )
             }
             className={`w-full h-48 border-4 border-dashed ${
