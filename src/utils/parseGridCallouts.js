@@ -6,7 +6,7 @@ const parseGridCallouts = (rows, formatMultiline) => {
   const structured = [];
   const outputLines = [];
 
-  for (let i = 3; i < rows.length; i++) {
+  for (let i = 2; i < rows.length; i++) {
     const colA = rows[i]?.[0]; // WL number (Column A)
     const colB = rows[i]?.[1]; // Callout text (Column B)
     const colC = rows[i]?.[2]; // Note to Tech → hText
