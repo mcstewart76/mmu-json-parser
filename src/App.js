@@ -4,6 +4,7 @@ import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
 import * as XLSX from "xlsx";
 import parseExcelJobSummary from "./utils/parseExcelJobSummary";
 import ExcelJobSummaryDisplay from "./components/ExcelJobSummaryDisplay";
+import parseGridCallouts from "./utils/parseGridCallouts";
 
 function calculatePoleStats(parsedData) {
   let totalPoles = 0;
@@ -64,6 +65,7 @@ function App() {
   const jobStats = calculatePoleStats(parsedData);
   const [excelJobSummary, setExcelJobSummary] = useState(null);
   const [isGPC, setIsGPC] = useState(false);
+  const [isGrid, setIsGrid] = useState(false);
 
   // Function to toggle dark mode
   const handleToggleDarkMode = () => {
@@ -328,41 +330,56 @@ function App() {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      //Flags to determine which job type
       const gpcFlag = (sheet.H1?.v || sheet.I1?.v || "")
         .toString()
         .toUpperCase()
         .includes("GPC");
       setIsGPC(gpcFlag);
-      const calloutSheet =
-        workbook.Sheets["Callout Template"] || workbook.Sheets["Sheet1"];
-      const calloutRowsRaw = XLSX.utils.sheet_to_json(calloutSheet, {
-        defval: "",
-      });
-      const calloutRows = calloutRowsRaw.map((row) => ({
-        location: row["LOC #"] || row["Location"] || "",
-        rm: row["REMOVALS"] || row["RM"] || "",
-        in: row["INSTALLS"] || row["IN"] || row["Install"] || "",
-        tx: row["TRANSFERS"] || row["TX"] || "",
-        notes:
-          row["SPEC/NOTES"] ||
-          row["Note/Spec"] ||
-          row["Notes"] ||
-          row["Spec"] ||
-          "",
-      }));
+      const gridFlag = (sheet.H1?.v || sheet.I1?.v || "")
+        .toString()
+        .toUpperCase()
+        .includes("GRID");
+      setIsGrid(gridFlag);
+      // const calloutSheet =
+      //   workbook.Sheets["Callout Template"] || workbook.Sheets["Sheet1"];
+      // const calloutRowsRaw = XLSX.utils.sheet_to_json(calloutSheet, {
+      //   defval: "",
+      // });
+      // const calloutRows = calloutRowsRaw.map((row) => ({
+      //   location: row["LOC #"] || row["Location"] || "",
+      //   rm: row["REMOVALS"] || row["RM"] || "",
+      //   in: row["INSTALLS"] || row["IN"] || row["Install"] || "",
+      //   tx: row["TRANSFERS"] || row["TX"] || "",
+      //   notes:
+      //     row["SPEC/NOTES"] ||
+      //     row["Note/Spec"] ||
+      //     row["Notes"] ||
+      //     row["Spec"] ||
+      //     "",
+      // }));
+if (gridFlag) {
+  const { structured, output } = parseGridCallouts(rows, formatMultiline);
 
-      const boreSheet = workbook.Sheets["Bore"];
-      const boreData = {
-        primaryUG: Number(boreSheet?.D4?.v || 0),
-        secondaryUG: Number((boreSheet?.P4?.v || 0) + (boreSheet?.H4?.v || 0)),
-        serviceUG: Number((boreSheet?.L4?.v || 0) + (boreSheet?.T4?.v || 0)),
-        totalBoreFootage: Number(boreSheet?.AC3?.v || boreSheet?.AC4?.v || 0),
-      };
+  setParsedExcelData(structured);
+  setExcelOutput(output);
+  setIsGPC(true); // Ensures GRID output matches GPC formatting
+  return;
 
-      const parsedExcelData = {
-        "Callout Template": calloutRows,
-        Bore: boreData,
-      };
+    };
+
+      // const boreSheet = workbook.Sheets["Bore"];
+      // const boreData = {
+      //   primaryUG: Number(boreSheet?.D4?.v || 0),
+      //   secondaryUG: Number((boreSheet?.P4?.v || 0) + (boreSheet?.H4?.v || 0)),
+      //   serviceUG: Number((boreSheet?.L4?.v || 0) + (boreSheet?.T4?.v || 0)),
+      //   totalBoreFootage: Number(boreSheet?.AC3?.v || boreSheet?.AC4?.v || 0),
+      // };
+
+      // const parsedExcelData = {
+      //   "Callout Template": calloutRows,
+      //   Bore: boreData,
+      // };
 
       // --- NJUNS sheet parsing ---
       const njunsSheet = workbook.Sheets["NJUNS"];
@@ -426,14 +443,14 @@ function App() {
           displayTag = trimmedTag; // this could still be empty or "INSTALL T# 123" etc.
         }
 
-        if (isGPC) {
+        if (isGPC || isGrid) {
           outputLines.push(`**WL ${location}**`);
         } else {
           outputLines.push(
             `LOC ${location}${displayTag.trim() ? ` - ${displayTag}` : ""}`
           );
         }
-        if (isGPC) {
+        if (isGPC || isGrid) {
           outputLines.push(""); // Blank line between WL and notes
         }
         // outputLines.push(
